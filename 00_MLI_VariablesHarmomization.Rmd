@@ -1,0 +1,92 @@
+---
+title: "MLI - Variables harmonization for all surveys and years"
+author: "COMPAORE BASHIR"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+
+```{r packages needed}
+library(haven)
+library(labelled)
+library(tidyverse)
+library(dplyr)
+library(Hmisc)
+library(gtsummary)
+library(readxl)
+library(foreign)
+```
+
+
+
+```{r}
+rm(list = ls())
+```
+
+```{r environment settings}
+
+dir_input_data = "C:/Users/user/Desktop/ISEP 3/Projet_Hema/input_data"
+dir_output_data = "C:/Users/user/Desktop/ISEP 3/Projet_Hema/output_data"
+```
+
+```{r read harmonization excel file}
+
+MLI_Harmonization_variables <- read_excel(paste0(dir_input_data,"/MLI_Harmonization.xlsx"), 
+    sheet = "variables_harmonization")
+#View(MLI_Harmonization_variables)
+
+MLI_Harmonization_description <- read_excel(paste0(dir_input_data,"/MLI_Harmonization.xlsx"), 
+    sheet = "description")
+#View(MLI_Harmonization_description)
+```
+
+```{r data importation}
+
+lst_data = MLI_Harmonization_description$Data
+lst_test = MLI_Harmonization_description$Name
+
+for(i in 1:length(lst_data)) {                              # Head of for-loop
+  assign(lst_test[i],                                   # Read and store data frames
+         read_sav(paste0(dir_input_data,"/",lst_data[i])))
+}
+
+```
+
+
+
+
+
+```{r select and rename columns needed}
+
+for (j in 1:length(lst_test)){
+         df=  get(lst_test[j], envir = .GlobalEnv)
+         print(j)
+         
+          for (i in 1:nrow(MLI_Harmonization_variables)){
+            df[,MLI_Harmonization_variables$NewVariable_Name[i]]=ifelse(is.na(MLI_Harmonization_variables[i,lst_test[j]]),NA,df[,MLI_Harmonization_variables[i,lst_test[j]][[1]]])
+          }
+    
+    df<-df %>% select(MLI_Harmonization_variables$NewVariable_Name)
+    write.csv2(df, paste0(dir_output_data,"/",lst_test[j],".sav"))
+    
+
+}
+
+
+```
+
+```{r}
+
+
+```
+
+
+
