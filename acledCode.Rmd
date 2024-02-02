@@ -1,0 +1,275 @@
+---
+title: "acledCode"
+author: "Guerzoniansus"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Données ACLED & Countries
+
+##Partie 1
+
+###Importation des packages nécessaires
+
+```{r}
+library("raster")
+library("here")
+library("sf")
+library("ggplot2")
+library("ggspatial")
+library("dplyr")
+library("raster")
+library("leaflet")
+```
+
+###Importation de la base de données
+
+```{r}
+#Liens d'accès au fichier
+path = here()
+acledBase = paste0(path, "/ACLED-Western_Africa.csv")
+```
+
+
+```{r}
+data = read.csv2(acledBase)
+```
+
+###Comptage des évènements par pays
+
+```{r}
+disp = table(data$pays, data$type)
+```
+
+###Evènements par région et par département
+
+```{r}
+data_sf = st_as_sf(data, coords = c("longitude", "latitude"))
+class(data_sf)
+```
+
+
+```{r}
+st_crs(data_sf) = 4326
+```
+
+```{r}
+cart = ggplot(data_sf) + geom_sf(data = data_sf, aes(fill = pays), color = "blue", size = 0.5)
+cart
+```
+
+```{r}
+data_x = subset(data, pays == "Mali")
+data_x_sf = st_as_sf(data_x, coords = c("longitude", "latitude"))
+class(data_x_sf)
+st_crs(data_x_sf) = 4326
+```
+
+```{r}
+cart_x = ggplot(data_x_sf) + geom_sf(data = data_x_sf, aes(fill = pays), color = "blue", size = 0.5)
+cart_x
+```
+
+
+```{r}
+shp_path = paste0(path, "/gadm41_MLI_shp/gadm41_MLI_0.shp")
+regions_path = paste0(path, "/gadm41_MLI_shp/gadm41_MLI_1.shp")
+```
+
+
+```{r}
+x = read_sf(shp_path)
+regions = read_sf(regions_path)
+```
+
+```{r}
+map_regions = ggplot(regions) + geom_sf(data = regions, aes(), fill = "#FCEFBE", color = "black", size = 0.5)
+map_regions
+```
+
+```{r}
+plot_final = map_regions +
+  geom_sf(data = data_x_sf, aes(fill = pays), color = "blue", size = 0.5)
+```
+
+```{r}
+plot_final
+```
+
+```{r}
+data_x_sf = st_join(data_x_sf, regions, join = st_intersects)
+```
+
+```{r}
+events_count = data_x_sf %>%
+  group_by(NAME_1) %>%
+  summarise(total_events = n())
+```
+
+
+```{r}
+regions_j = st_join(regions, events_count, join=st_intersects)
+```
+
+
+```{r}
+plot(regions_j["total_events"])
+```
+
+
+
+```{r}
+pays_g5_sahel = c("Burkina Faso", "Mali", "Mauritania", "Niger", "Tchad")
+```
+
+
+```{r}
+data_g5_sahel = data %>%
+  filter(pays %in% pays_g5_sahel)
+data_g5_sahel = st_as_sf(data_g5_sahel, coords = c("longitude", "latitude"))
+class(data_g5_sahel)
+st_crs(data_g5_sahel) = 4326
+```
+
+```{r}
+cart_g5_sahel = ggplot(data_g5_sahel) + geom_sf(data = data_g5_sahel, aes(fill = pays), color = "blue", size = 0.5)
+cart_g5_sahel
+```
+
+```{r}
+bfa_path = paste0(path, "/gadm41_BFA_shp/gadm41_BFA_0.shp")
+ner_path = paste0(path, "/gadm41_NER_shp/gadm41_NER_0.shp")
+mli_path = paste0(path, "/gadm41_MLI_shp/gadm41_MLI_0.shp")
+mrt_path = paste0(path, "/gadm41_MRT_shp/gadm41_MRT_0.shp")
+```
+
+
+```{r}
+bfa = read_sf(bfa_path)
+ner = read_sf(ner_path)
+mli = read_sf(mli_path)
+mrt = read_sf(mrt_path)
+```
+
+
+```{r}
+list_sf <- list(bfa, ner, mli, mrt)
+g5_sf <- do.call(rbind, list_sf)
+```
+
+
+```{r}
+g5 = ggplot(g5_sf) + geom_sf(data = g5_sf, aes(), fill = "#FCEFBE", color = "black", size = 0.5)
+g5
+```
+
+```{r}
+f_plot = g5 + geom_sf(data = data_g5_sahel, aes(fill = pays), color = "blue", size = 0.5)
+f_plot
+```
+
+
+
+```{r}
+# Obtenir l'étendue des données
+bbox_g5 = st_bbox(data_g5_sahel)
+
+cell_size = 10  # 10 km en mètres
+res = cell_size/111
+
+# Calculer le nombre de cellules dans chaque direction
+ncols = ceiling((bbox_g5["xmax"] - bbox_g5["xmin"])/res) #* cell_size
+nrows = ceiling((bbox_g5["ymax"] - bbox_g5["ymin"])/res) #* cell_size
+ncols
+nrows
+```
+
+
+```{r}
+# Créer un raster vide avec les dimensions et l'étendue spécifiées
+raster_g5 <- raster(nrows = nrows, ncols = ncols, xmn = bbox_g5["xmin"], xmx = bbox_g5["xmax"], 
+                    ymn = bbox_g5["ymin"], ymx = bbox_g5["ymax"], crs = st_crs(data_g5_sahel))
+
+if (is.null(projection(raster_g5))) {
+  projection(raster_g5) <- "+proj=longlat +datum=WGS84"
+}
+
+# Convertir les données en raster en comptant les événements par cellule
+raster_events <- rasterize(data_g5_sahel, raster_g5, field = "type", fun = "count")
+```
+
+
+
+```{r}
+plot(raster_events, col = terrain.colors(20))
+```
+
+
+```{r}
+raster_events
+projection(raster_events) = crs("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+m <- leaflet() %>%
+  addTiles()  # Ajouter des tuiles de fond de carte
+
+cart_g5 = addRasterImage(
+  m,
+  raster_events,
+  opacity = 0.8,
+  project = TRUE)
+cart_g5
+```
+
+
+```{r}
+raster_events[]
+```
+
+
+```{r}
+raster_events = raster::reclassify(raster_events, cbind(NA, 0))
+```
+
+```{r}
+breaks = c(-Inf, 5, 10, 15, Inf)
+categories = raster::cut(raster_events[], breaks=breaks, labels = c("[-Inf, 5]", "(5,10]", "(10, 15]", "(15,Inf]"), include.lowest = TRUE)
+
+raster_categ = raster(raster_events)
+values(raster_categ) = as.numeric(categories)
+
+projection(raster_categ) = crs("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+n <- leaflet() %>%
+  addTiles()  # Ajouter des tuiles de fond de carte
+
+cart_g5 = addRasterImage(
+  n,
+  raster_categ,
+  opacity = 0.8,
+  project = TRUE)
+cart_g5
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

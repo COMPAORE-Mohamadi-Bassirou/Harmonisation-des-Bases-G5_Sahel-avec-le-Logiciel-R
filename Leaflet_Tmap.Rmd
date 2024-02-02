@@ -1,0 +1,127 @@
+---
+title: "tmap_leaflet"
+author: "COMPAORE Mohamadi Bassirou"
+date: "2023-12-05"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Packages
+```{r}
+library(sf)
+library(tidyverse) 
+library(dplyr)
+library(tmap)
+library(ggplot2)
+library(leaflet)
+library(leafem)
+library(leaflet.extras)
+library(esquisse)
+
+```
+
+#Importation du shapfile du Sénégal
+
+```{r}
+path1 ="C:/Users/ROSSA/Documents/ISEP3/Semestre1/Stat spaciale avec R/gadm41"
+Senegal_sf <- read_sf(paste0(path1,"/gadm41_SEN_1.shp"))
+```
+
+#Carte ave ggplot
+
+```{r}
+ggplot() +
+  geom_sf(data = Senegal_sf, aes(fill = NAME_1)) +
+  scale_fill_manual(values =colors()[98:112]) +
+  ggtitle("Régions du Sénégal") + 
+  labs(fill = "Pays") 
+```
+
+
+
+```{r}
+esquisse::esquisser(Senegal_sf)
+
+ggplot(Senegal_sf) +
+  aes(fill = NAME_1) +
+  geom_sf(size = 1.6) +
+  scale_fill_hue(direction = 1) +
+  labs(
+    x = "Longitude",
+    y = "Latitude",
+    caption = "Carte Sénégal",
+    fill = "Régions"
+  ) +
+  theme_gray() +
+  theme(legend.position = "top")
+```
+
+#Carte thématique avec tmap
+
+```{r}
+tm_shape(Senegal_sf) +
+  tm_borders() +
+  tm_fill(col ="NAME_1") +
+  tm_layout(title = "Régions du Sénégal") +
+  tm_legend(legend.position = c("left", "bottom"), title = "Pays")+
+ tmap_mode("view") #Pour une  carte interactive
+```
+
+#carte interactive
+
+```{r}
+leaflet(Senegal_sf) %>%
+  addTiles()  %>% 
+  addPolygons(
+    fillColor = "NAME_1",
+    color = "white",
+    weight = 1,
+    opacity = 2,
+    fillOpacity = 0.7,
+    highlightOptions = highlightOptions(
+      color= "red",
+      weight = 2,
+      bringToFront = TRUE
+    ),
+    label = ~as.character(NAME_1)
+  ) %>% 
+  addMarkers(lng=-17.4264036432972, lat=14.699239300962477, 
+             label="Capitale du Sénégal", 
+             popup="Dakar")%>% 
+addCircleMarkers(radius =50, 
+                 stroke = FALSE,  
+                 fillOpacity = 0.4, 
+                 lng=-17.4264036432972 , lat=14.699239300962477, 
+                 label = "Dakar", 
+                 labelOptions = 
+                   labelOptions(noHide = F, 
+                                direction = "top", 
+                                style = list(
+                                  "color" = "black", 
+                                  "font-family" = "arial", 
+                                  "font-style" = "bold", 
+                                  "box-shadow" = "3px 3px rgba(0,0,0,0.25)", 
+                                  "font-size" = "12px" 
+                                )))%>% 
+addMouseCoordinates()%>%  
+addResetMapButton()%>%  
+addFullscreenControl()%>%  
+addSearchOSM()%>%  
+addMeasure(position = "topleft",              
+           primaryLengthUnit = "kilometers",
+           secondaryAreaUnit = FALSE)%>% 
+addScaleBar(      
+  position = "bottomleft" 
+)%>% 
+addMiniMap(
+  toggleDisplay = TRUE)
+
+```
+
+
+
+
+
